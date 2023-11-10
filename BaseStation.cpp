@@ -15,9 +15,6 @@ BaseStation* BaseStation::Instance()
 
 void BaseStation::LHV2AlertCallback(LHV2Mgr::AlertEnum alert, void* pParams)
 {
-  char* pBuf = new char[256];
-  memset(pBuf, 0, 256);
-
   switch (alert)
   {
   case LHV2Mgr::BT_NOT_ENABLED:
