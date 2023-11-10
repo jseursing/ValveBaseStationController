@@ -67,15 +67,10 @@ bool LightHouse::WriteCharacteristic(std::string service,
                                      std::string value)
 {
   // First attempt to connect
-  if (false == BLEPeripheral.is_connected())
-  {
-    BLEPeripheral.connect();
-  }
-
-  if (true == BLEPeripheral.is_connected())
+  if (true == Connect())
   {
     BLEPeripheral.write_request(service, characteristic, value);
-    BLEPeripheral.disconnect();
+    Disconnect();
 
     return true;
   }
@@ -85,22 +80,7 @@ bool LightHouse::WriteCharacteristic(std::string service,
 
 bool LightHouse::ReadCharacteristics()
 {
-  // First attempt to connect
-  try
-  {
-    if (false == BLEPeripheral.is_connected())
-    {
-      OutputDebugStringA("Connecting\n");
-      BLEPeripheral.connect();
-      OutputDebugStringA("Connected\n");
-    }
-  }
-  catch (...)
-  {
-    OutputDebugStringA("Exception thrown while connecting\n");
-  }
-
-  if (true == BLEPeripheral.is_connected())
+  if (true == Connect())
   {
     // Retrieve services/characteristics if we haven't done so
     if (true == Services.empty())
@@ -161,16 +141,7 @@ bool LightHouse::ReadCharacteristics()
       }
     }
 
-    try
-    {
-      OutputDebugStringA("Disconnecting\n");
-      BLEPeripheral.disconnect();
-      OutputDebugStringA("Disconnected\n");
-    }
-    catch (...)
-    {
-      OutputDebugStringA("Exception thrown while disconnecting\n");
-    }
+    Disconnect();
 
     return true;
   }
@@ -203,4 +174,72 @@ void LightHouse::SetStatus(std::string status)
 std::string LightHouse::GetStatus() const
 {
   return Status;
+}
+
+bool LightHouse::PowerOff()
+{
+  if (true == WriteCharacteristic(LightHouse::SVC_UUID,
+                                  LightHouse::CHARACTERISTIC_UUID,
+                                  std::string(1, LightHouse::PWR_OFF)))
+  {
+    if (true == ReadCharacteristics())
+    {
+      if (std::string::npos != Status.find("OFF"))
+      {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+bool LightHouse::PowerOn()
+{
+  if (true == WriteCharacteristic(LightHouse::SVC_UUID,
+                                  LightHouse::CHARACTERISTIC_UUID,
+                                  std::string(1, LightHouse::PWR_ON)))
+  {
+    if (true == ReadCharacteristics())
+    {
+      if (std::string::npos != Status.find("ON"))
+      {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+bool LightHouse::Connect()
+{
+  try
+  {
+    if (false == BLEPeripheral.is_connected())
+    {
+      BLEPeripheral.connect();
+    }
+  }
+  catch (...)
+  {
+    OutputDebugStringA("Exception thrown while connecting\n");
+  }
+
+  return BLEPeripheral.is_connected();
+}
+
+void LightHouse::Disconnect()
+{
+  try
+  {
+    if (true == BLEPeripheral.is_connected())
+    {
+      BLEPeripheral.disconnect();
+    }
+  }
+  catch (...)
+  {
+    OutputDebugStringA("Exception thrown while disconnecting\n");
+  }
 }

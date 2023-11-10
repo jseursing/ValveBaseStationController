@@ -22,14 +22,25 @@ void LHV2Mgr::RefreshDevices()
 {
   if (IDLE == DiscState)
   {
-    Lighthouses.clear();
     DiscState = SCAN;
+  }
+  else if (PROCESSING == DiscState)
+  {
+    TransitionToScan = true;
   }
 }
 
 std::vector<LightHouse*> LHV2Mgr::GetLighthouses()
 {
   return Lighthouses;
+}
+
+void LHV2Mgr::PowerOnDevices()
+{
+  if (PROCESSING == DiscState)
+  {
+    DiscState = POWERING_ON;
+  }
 }
 
 void LHV2Mgr::DeviceScanLoop(LHV2Mgr* instance)
@@ -73,26 +84,28 @@ void LHV2Mgr::DeviceScanLoop(LHV2Mgr* instance)
           break;
         }
 
-        size_t validCount = 0;
+        bool valid = false;
         for (size_t i = 0; i < instance->Lighthouses.size(); ++i)
         {
           instance->Lighthouses[i]->ReadCharacteristics();
           if (true == instance->Lighthouses[i]->IsValidLighthouse())
           {
-            ++validCount;
+            valid = true;
+            break;
           }
         }
 
-        if (0 == validCount)
+        if (false == valid)
         {
           instance->Lighthouses.clear();
-          instance->_AlertCallback(READY, nullptr);
           instance->DiscState = IDLE;
-          break;
+        }
+        else
+        {
+          instance->DiscState = PROCESSING;
         }
 
         instance->_AlertCallback(READY, nullptr);
-        instance->DiscState = PROCESSING;
       }
       break;
       case PROCESSING:
@@ -116,29 +129,40 @@ void LHV2Mgr::DeviceScanLoop(LHV2Mgr* instance)
           }
         }
 
-        if ((3 * instance->Lighthouses.size()) <= shutoff_tick)
+        if (instance->Lighthouses.size() < shutoff_tick)
         {
           instance->_AlertCallback(TERMINATE, nullptr);
           instance->DiscState = TERMINATING;
-        }
-        else
-        {
-          instance->_AlertCallback(READY, nullptr);
+          shutoff_tick = 0;
+          break;
         }
 
-        Sleep(5000);
+        if (true == instance->TransitionToScan)
+        {
+          instance->TransitionToScan = false;
+          instance->DiscState = SCAN;
+          break;
+        }
+
+        instance->_AlertCallback(READY, nullptr);
       }
       break;
       case TERMINATING:
       {
-        shutoff_tick = 0;
-
         instance->DiscState = PROCESSING;
         for (size_t i = 0; i < instance->Lighthouses.size(); ++i)
         {
-          instance->Lighthouses[i]->WriteCharacteristic(LightHouse::SVC_UUID,
-                                                        LightHouse::CHARACTERISTIC_UUID,
-                                                        std::string(1, LightHouse::PWR_OFF));
+          instance->Lighthouses[i]->PowerOff();
+        }
+      }
+      break;
+      case POWERING_ON:
+      {
+        instance->DiscState = PROCESSING;
+        instance->_AlertCallback(POWER_ON, nullptr);
+        for (size_t i = 0; i < instance->Lighthouses.size(); ++i)
+        {
+          instance->Lighthouses[i]->PowerOn();
         }
       }
       break;
@@ -185,7 +209,8 @@ bool LHV2Mgr::IsValveVRActive()
 LHV2Mgr::LHV2Mgr(AlertCallback cb) :
   DiscState(IDLE),
   ActiveAdapter(0),
-  _AlertCallback(cb)
+  _AlertCallback(cb),
+  TransitionToScan(false)
 {
   assert(nullptr != _AlertCallback);
 

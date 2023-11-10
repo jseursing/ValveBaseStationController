@@ -14,10 +14,10 @@ public:
     BT_NOT_ENABLED,
     NO_ADAPTERS_FOUND,
     SCANNING,
-    VALIDATING,
     READY,
     STATUS,
     VR_ACTIVE,
+    POWER_ON,
     TERMINATE
   };
   typedef void(*AlertCallback)(const AlertEnum alert, void* pDetails);
@@ -26,6 +26,7 @@ public:
   static void Destroy(LHV2Mgr* instance);
   void RefreshDevices();
   std::vector<LightHouse*> GetLighthouses();
+  void PowerOnDevices();
 
 private:
 
@@ -41,7 +42,8 @@ private:
     SCAN,
     VALIDATE,
     PROCESSING,
-    TERMINATING
+    TERMINATING,
+    POWERING_ON
   };
 
   DiscoveryStateEnum DiscState;
@@ -51,5 +53,6 @@ private:
   std::vector<SimpleBLE::Adapter> Adapters;
   std::vector<SimpleBLE::Peripheral> Peripherals;
   std::vector<LightHouse*> Lighthouses;
+  bool TransitionToScan;
 };
 

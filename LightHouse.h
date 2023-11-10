@@ -26,8 +26,13 @@ public:
   bool IsValidLighthouse() const;
   void SetStatus(std::string status);
   std::string GetStatus() const;
+  bool PowerOff();
+  bool PowerOn();
 
 private:
+
+  bool Connect();
+  void Disconnect();
 
   std::string Address;
   std::string Identifier;

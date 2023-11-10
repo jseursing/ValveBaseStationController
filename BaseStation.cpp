@@ -1,5 +1,8 @@
 #include "BaseStation.h"
+#include <QMenu>
+#include <QMessageBox>
 #include <QMovie>
+#include <QSystemTrayIcon>
 #include <QTimer>
 #pragma comment(lib, "simpleble.lib")
 
@@ -27,9 +30,6 @@ void BaseStation::LHV2AlertCallback(LHV2Mgr::AlertEnum alert, void* pParams)
     BaseStation::Instance()->SetStatus("Scanning for devices");
     emit BaseStation::Instance()->drawSignal(BaseStation::LOAD_ID);
     break;
-  case LHV2Mgr::VALIDATING:
-    BaseStation::Instance()->SetStatus("Validating characteristics");
-    break;
   case LHV2Mgr::READY:
     emit BaseStation::Instance()->drawSignal(BaseStation::RUNNING_ID);
     break;
@@ -39,6 +39,12 @@ void BaseStation::LHV2AlertCallback(LHV2Mgr::AlertEnum alert, void* pParams)
   case LHV2Mgr::TERMINATE:
     BaseStation::Instance()->StatusList.clear();
     BaseStation::Instance()->SetStatus("Terminating Base Station(s)");
+    emit BaseStation::Instance()->drawSignal(BaseStation::LOAD_ID);
+    break;
+  case LHV2Mgr::POWER_ON:
+    BaseStation::Instance()->StatusList.clear();
+    BaseStation::Instance()->SetStatus("Powering on Base Station(s)");
+    emit BaseStation::Instance()->drawSignal(BaseStation::LOAD_ID);
     break;
   }
 }
@@ -82,13 +88,13 @@ void BaseStation::processScan()
   char tempBuf[512] = { 0 };
 
   StatusList.clear();
-  sprintf_s(tempBuf, "Managing %d Base Station(s)", devices.size());
+  sprintf_s(tempBuf, "Managing %zd Base Station(s)", devices.size());
   StatusList.push_back(tempBuf);
 
   for (size_t i = 0; i < devices.size(); ++i)
   {
     sprintf_s(tempBuf,
-              "ID: %s\nADDR: %s\nSTATUS: %s\n",
+              "Identifier: %s\nAddress: %s\nStatus: %s\n",
               devices[i]->GetIdentifier().c_str(),
               devices[i]->GetAddress().c_str(),
               devices[i]->GetStatus().c_str());
@@ -104,7 +110,41 @@ void BaseStation::statusTimerSlot()
   static uint32_t tick = 0;
   if (0 != StatusList.size())
   {
-    emit SetStatus(StatusList[tick++ % StatusList.size()]);
+    SetStatus(StatusList[tick++ % StatusList.size()]);
+  }
+}
+
+void BaseStation::refreshSlot()
+{
+  LighthouseV2Mgr->RefreshDevices();
+}
+
+void BaseStation::powerOnSlot()
+{
+  LighthouseV2Mgr->PowerOnDevices();
+}
+
+void BaseStation::closeEvent(QCloseEvent* closeEvent)
+{
+  QMessageBox::StandardButton resBtn = 
+    QMessageBox::question(this, 
+                          "Valve Base Station Controller",
+                          "Minimize to tray instead?",
+                          QMessageBox::Cancel | QMessageBox::No | QMessageBox::Yes,
+                          QMessageBox::No);
+  switch (resBtn)
+  {
+  case QMessageBox::Yes:
+    TrayIcon->setVisible(true);
+    closeEvent->ignore();
+    hide();
+    break;
+  case QMessageBox::No:
+    closeEvent->accept();
+    break;
+  case QMessageBox::Cancel:
+    closeEvent->ignore();
+    break;
   }
 }
 
@@ -129,6 +169,41 @@ BaseStation::BaseStation(QWidget *parent) :
   connect(StatusTimer, &QTimer::timeout, this, &BaseStation::statusTimerSlot);
   connect(this, &BaseStation::statusSignal, this, &BaseStation::statusSlot);
   connect(this, &BaseStation::drawSignal, this, &BaseStation::drawSlot);
+
+  ui.DisplayLabel->setContextMenuPolicy(Qt::CustomContextMenu);
+  connect(ui.DisplayLabel, &QLabel::customContextMenuRequested, this, 
+    [this](const QPoint& pos)
+    {
+      QMenu menu;
+      QAction* action = menu.addAction("Refresh Devices");
+      connect(action, &QAction::triggered, this, &BaseStation::refreshSlot);
+
+      action = menu.addAction("Power On Devices");
+      connect(action, &QAction::triggered, this, &BaseStation::powerOnSlot);
+      
+      menu.exec(mapToGlobal(pos));
+    });
+
+  TrayMenu = new QMenu();
+  QAction* action = TrayMenu->addAction("Open Display");
+  connect(action, &QAction::triggered, this, 
+    [this]() 
+    {
+      TrayIcon->hide();
+      show();
+    });
+  TrayMenu->addSeparator();
+  action = TrayMenu->addAction("Refresh Devices");
+  connect(action, &QAction::triggered, this, &BaseStation::refreshSlot);
+  action = TrayMenu->addAction("Power On Devices");
+  connect(action, &QAction::triggered, this, &BaseStation::powerOnSlot);
+  TrayMenu->addSeparator();
+  action = TrayMenu->addAction("Exit");
+  connect(action, &QAction::triggered, this, [this](){ exit(0); });
+  TrayIcon = new QSystemTrayIcon(QIcon(QPixmap(":/new/prefix1/resources/trayicon.png")));
+  TrayIcon->setContextMenu(TrayMenu);
+  
+  setWindowIcon(QIcon(QPixmap(":/new/prefix1/resources/trayicon.png")));
 
   ProcessingMovie = new QMovie(":/new/prefix1/resources/processing.gif");
   ScanningMovie = new QMovie(":/new/prefix1/resources/loading.gif");
