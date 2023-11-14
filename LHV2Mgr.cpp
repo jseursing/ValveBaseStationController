@@ -15,7 +15,7 @@ LHV2Mgr* LHV2Mgr::Create(AlertCallback cb)
 
 void LHV2Mgr::Destroy(LHV2Mgr* instance)
 {
-
+  delete instance;
 }
 
 void LHV2Mgr::RefreshDevices()
@@ -68,7 +68,7 @@ void LHV2Mgr::DeviceScanLoop(LHV2Mgr* instance)
         for (size_t i = 0; i < instance->Peripherals.size(); ++i)
         {
           if (std::string::npos !=
-              instance->Peripherals[i].identifier().find(LightHouse::LIGHTHOUSE_IDENTIFIER))
+              instance->Peripherals[i].identifier().find(LightHouse::LIGHTHOUSE_ID))
           {
             LightHouse* lighthouse = new LightHouse(instance->Peripherals[i].address(),
                                                     instance->Peripherals[i].identifier(),
@@ -77,13 +77,7 @@ void LHV2Mgr::DeviceScanLoop(LHV2Mgr* instance)
           }
         }
 
-        if (0 == instance->Lighthouses.size())
-        {
-          instance->_AlertCallback(READY, nullptr);
-          instance->DiscState = IDLE;
-          break;
-        }
-
+        // Extract valid lighthouses from the above results
         bool valid = false;
         for (size_t i = 0; i < instance->Lighthouses.size(); ++i)
         {
@@ -110,6 +104,7 @@ void LHV2Mgr::DeviceScanLoop(LHV2Mgr* instance)
       break;
       case PROCESSING:
       {
+        // Do not continue if SteamVR is active
         if (true == IsValveVRActive())
         {
           shutoff_tick = 0;
@@ -117,6 +112,7 @@ void LHV2Mgr::DeviceScanLoop(LHV2Mgr* instance)
           break;
         }
 
+        // Increment shutoff tick if any of the lighthouses are active
         for (size_t i = 0; i < instance->Lighthouses.size(); ++i)
         {
           if (true == instance->Lighthouses[i]->ReadCharacteristics())
@@ -129,14 +125,16 @@ void LHV2Mgr::DeviceScanLoop(LHV2Mgr* instance)
           }
         }
 
+        // Transition to termination if we exceed the shutoff limit
         if (instance->Lighthouses.size() < shutoff_tick)
         {
-          instance->_AlertCallback(TERMINATE, nullptr);
           instance->DiscState = TERMINATING;
           shutoff_tick = 0;
           break;
         }
 
+        // User manually prompted a re-scan. We transition here
+        // to avoid multiple threads attempting to execute BLE functions.
         if (true == instance->TransitionToScan)
         {
           instance->TransitionToScan = false;
@@ -149,21 +147,24 @@ void LHV2Mgr::DeviceScanLoop(LHV2Mgr* instance)
       break;
       case TERMINATING:
       {
-        instance->DiscState = PROCESSING;
+        instance->_AlertCallback(TERMINATE, nullptr);
         for (size_t i = 0; i < instance->Lighthouses.size(); ++i)
         {
           instance->Lighthouses[i]->PowerOff();
         }
+
+        instance->DiscState = PROCESSING;
       }
       break;
       case POWERING_ON:
       {
-        instance->DiscState = PROCESSING;
         instance->_AlertCallback(POWER_ON, nullptr);
         for (size_t i = 0; i < instance->Lighthouses.size(); ++i)
         {
           instance->Lighthouses[i]->PowerOn();
         }
+
+        instance->DiscState = PROCESSING;
       }
       break;
       default:

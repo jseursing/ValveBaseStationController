@@ -6,9 +6,9 @@ class LightHouse
 {
 public:
 
-  static const char* LIGHTHOUSE_IDENTIFIER;
-  static const char* SVC_UUID;
-  static const char* CHARACTERISTIC_UUID;
+  static const char* LIGHTHOUSE_ID;
+  static const char* PWR_SVC_UUID;
+  static const char* PWR_CHAR_UUID;
   static const char  PWR_ON  = 0x01;
   static const char  PWR_OFF = 0x00;
 
@@ -20,8 +20,8 @@ public:
   std::string GetAddress() const;
   std::string GetIdentifier() const;
   void AddCharacteristic(std::string service, std::string characteristic);
-  std::string GetValue(std::string service, std::string characteristic);
   bool WriteCharacteristic(std::string service, std::string characteristic, std::string value);
+  std::string ReadCharacteristic(std::string service, std::string characteristic);
   bool ReadCharacteristics();
   bool IsValidLighthouse() const;
   void SetStatus(std::string status);
@@ -38,12 +38,9 @@ private:
   std::string Identifier;
   std::string Status;
 
-  struct Characteristic
-  {
-    std::string uuid;
-    std::string value;
-  };
-  std::map<std::string, std::vector<Characteristic>> Services;
+  std::map<std::string, std::map<std::string, std::string>> Services;
+  typedef std::map<std::string, std::map<std::string, std::string>>::const_iterator service_itr;
+  typedef std::map<std::string, std::string>::const_iterator characteristic_itr;
 
   SimpleBLE::Peripheral& BLEPeripheral;
 };

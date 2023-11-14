@@ -2,9 +2,9 @@
 #include <simpleble/SimpleBLE.h>
 #include <Windows.h>
 
-const char* LightHouse::LIGHTHOUSE_IDENTIFIER = "LHB-";
-const char* LightHouse::SVC_UUID = "00001523-1212-efde-1523-785feabcd124";
-const char* LightHouse::CHARACTERISTIC_UUID = "00001525-1212-efde-1523-785feabcd124";
+const char* LightHouse::LIGHTHOUSE_ID = "LHB-";
+const char* LightHouse::PWR_SVC_UUID  = "00001523-1212-efde-1523-785feabcd124";
+const char* LightHouse::PWR_CHAR_UUID = "00001525-1212-efde-1523-785feabcd124";
 
 LightHouse::LightHouse(std::string address,
                        std::string identifier,
@@ -32,34 +32,7 @@ std::string LightHouse::GetIdentifier() const
 
 void LightHouse::AddCharacteristic(std::string service, std::string characteristic)
 {
-  Characteristic c;
-  c.uuid  = characteristic;
-  c.value = "";
-
-  if (Services.end() == Services.find(service))
-  {
-    Services[service] = std::vector<Characteristic>{};
-  }
-
-  Services[service].push_back(c);
-}
-
-std::string LightHouse::GetValue(std::string service, std::string characteristic)
-{
-  std::string value = "";
-  if (Services.end() != Services.find(service))
-  {
-    for (Characteristic c : Services[service])
-    {
-      if (c.uuid == characteristic)
-      {
-        value = c.value;
-        break;
-      }
-    }
-  }
-
-  return value;
+  Services[service][characteristic] = "";
 }
 
 bool LightHouse::WriteCharacteristic(std::string service, 
@@ -76,6 +49,27 @@ bool LightHouse::WriteCharacteristic(std::string service,
   }
 
   return false;
+}
+
+std::string LightHouse::ReadCharacteristic(std::string service, 
+                                           std::string characteristic)
+{
+  std::string value = "";
+
+  service_itr s_itr = Services.find(service);
+  if (Services.end() != s_itr)
+  {
+    characteristic_itr c_itr = s_itr->second.find(characteristic);
+    if (s_itr->second.end() != c_itr)
+    {
+      Services[s_itr->first][c_itr->first] = BLEPeripheral.read(s_itr->first, c_itr->first);
+      value = c_itr->second;
+
+      Disconnect();
+    }
+  }
+
+  return value;
 }
 
 bool LightHouse::ReadCharacteristics()
@@ -95,32 +89,33 @@ bool LightHouse::ReadCharacteristics()
     }
 
     // Retrieve values of characteristics
-    std::string device = Identifier + "\n";
-    OutputDebugStringA(device.c_str());
-    for (std::map<std::string, std::vector<Characteristic>>::iterator itr = Services.begin();
-         itr != Services.end();
-         ++itr)
+    std::string debugStr = "Parsing " + Identifier + "\n";
+    OutputDebugStringA(debugStr.c_str());
+
+    for (service_itr s_itr = Services.begin(); s_itr != Services.end(); ++s_itr)
     {
-      for (size_t i = 0; i < itr->second.size(); ++i)
+      for (characteristic_itr c_itr = s_itr->second.begin(); 
+           c_itr != s_itr->second.end();
+           ++c_itr)
       {
-        std::string debugStr = itr->first + " " + itr->second[i].uuid;
+        debugStr = s_itr->first + " " + c_itr->first + " = ";
         
         // If we attempt to read something invalid, SimpleBLE throws an exception...
         try
         {
-          itr->second[i].value = BLEPeripheral.read(itr->first, itr->second[i].uuid);
-          debugStr += " " + itr->second[i].value + "\n";
+          Services[s_itr->first][c_itr->first] = BLEPeripheral.read(s_itr->first, c_itr->first);
+          debugStr += Services[s_itr->first][c_itr->first] + "\n";
         }
         catch (...)
         {
-          debugStr += " ERROR\n";
+          debugStr += "ERROR\n";
         }
         OutputDebugStringA(debugStr.c_str());
 
-        if ((SVC_UUID == itr->first) &&
-            (CHARACTERISTIC_UUID == itr->second[i].uuid))
+        if ((PWR_SVC_UUID == s_itr->first) &&
+            (PWR_CHAR_UUID == c_itr->first))
         {
-          std::string data = itr->second[i].value;
+          std::string data = c_itr->second;
           if (data.size())
           {
             switch (data[0])
@@ -151,16 +146,11 @@ bool LightHouse::ReadCharacteristics()
 
 bool LightHouse::IsValidLighthouse() const
 {
-  std::map<std::string, std::vector<Characteristic>>::const_iterator itr = Services.find(SVC_UUID);
-  if (Services.end() != itr)
+  service_itr s_itr = Services.find(PWR_SVC_UUID);
+  if (Services.end() != s_itr)
   {
-    for (Characteristic c : itr->second)
-    {
-      if (CHARACTERISTIC_UUID == c.uuid)
-      {
-        return true;
-      }
-    }
+    characteristic_itr c_itr = s_itr->second.find(PWR_CHAR_UUID);
+    return (c_itr != s_itr->second.end());
   }
 
   return false;
@@ -178,8 +168,8 @@ std::string LightHouse::GetStatus() const
 
 bool LightHouse::PowerOff()
 {
-  if (true == WriteCharacteristic(LightHouse::SVC_UUID,
-                                  LightHouse::CHARACTERISTIC_UUID,
+  if (true == WriteCharacteristic(LightHouse::PWR_SVC_UUID,
+                                  LightHouse::PWR_CHAR_UUID,
                                   std::string(1, LightHouse::PWR_OFF)))
   {
     if (true == ReadCharacteristics())
@@ -196,8 +186,8 @@ bool LightHouse::PowerOff()
 
 bool LightHouse::PowerOn()
 {
-  if (true == WriteCharacteristic(LightHouse::SVC_UUID,
-                                  LightHouse::CHARACTERISTIC_UUID,
+  if (true == WriteCharacteristic(LightHouse::PWR_SVC_UUID,
+                                  LightHouse::PWR_CHAR_UUID,
                                   std::string(1, LightHouse::PWR_ON)))
   {
     if (true == ReadCharacteristics())

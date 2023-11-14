@@ -34,12 +34,10 @@ void BaseStation::LHV2AlertCallback(LHV2Mgr::AlertEnum alert, void* pParams)
     emit BaseStation::Instance()->drawSignal(BaseStation::VR_ID);
     break;
   case LHV2Mgr::TERMINATE:
-    BaseStation::Instance()->StatusList.clear();
     BaseStation::Instance()->SetStatus("Terminating Base Station(s)");
     emit BaseStation::Instance()->drawSignal(BaseStation::LOAD_ID);
     break;
   case LHV2Mgr::POWER_ON:
-    BaseStation::Instance()->StatusList.clear();
     BaseStation::Instance()->SetStatus("Powering on Base Station(s)");
     emit BaseStation::Instance()->drawSignal(BaseStation::LOAD_ID);
     break;
@@ -54,31 +52,31 @@ void BaseStation::statusSlot(const char* status)
 
 void BaseStation::drawSlot(int drawType)
 {
+  StatusTimer->stop();
+
   switch (drawType)
   {
   case LOAD_ID:
+    BaseStation::Instance()->StatusList.clear();
     ui.DisplayLabel->setMovie(ScanningMovie);
     ProcessingMovie->stop();
     ScanningMovie->start();
-    StatusTimer->stop();
     break;
   case RUNNING_ID:
     ui.DisplayLabel->setMovie(ProcessingMovie);
     ProcessingMovie->start();
     ScanningMovie->stop();
     processScan();
+    StatusTimer->start();
     break;
   case VR_ID:
     SetStatus("SteamVR Active");
-    StatusTimer->stop();
     break;
   }
 }
 
 void BaseStation::processScan()
 {
-  StatusTimer->stop();
-
   // Build status list
   std::vector<LightHouse*> devices = LighthouseV2Mgr->GetLighthouses();
 
@@ -96,10 +94,7 @@ void BaseStation::processScan()
               devices[i]->GetAddress().c_str(),
               devices[i]->GetStatus().c_str());
     StatusList.push_back(tempBuf);
-
   }
-
-  StatusTimer->start();
 }
 
 void BaseStation::statusTimerSlot()
@@ -159,6 +154,7 @@ BaseStation::BaseStation(QWidget *parent) :
 {
   ui.setupUi(this);
   MyInstance = this;
+  setWindowIcon(QIcon(QPixmap(":/new/prefix1/resources/trayicon.png")));
 
   StatusTimer = new QTimer(this);
   StatusTimer->setSingleShot(false);
@@ -167,6 +163,7 @@ BaseStation::BaseStation(QWidget *parent) :
   connect(this, &BaseStation::statusSignal, this, &BaseStation::statusSlot);
   connect(this, &BaseStation::drawSignal, this, &BaseStation::drawSlot);
 
+  // Configure Graphical Label and menu
   ui.DisplayLabel->setContextMenuPolicy(Qt::CustomContextMenu);
   connect(ui.DisplayLabel, &QLabel::customContextMenuRequested, this, 
     [this](const QPoint& pos)
@@ -181,6 +178,7 @@ BaseStation::BaseStation(QWidget *parent) :
       menu.exec(mapToGlobal(pos));
     });
 
+  // Configure Tray Icon and menu
   TrayMenu = new QMenu();
   QAction* action = TrayMenu->addAction("Open Display");
   connect(action, &QAction::triggered, this, 
@@ -199,9 +197,8 @@ BaseStation::BaseStation(QWidget *parent) :
   connect(action, &QAction::triggered, this, [this](){ exit(0); });
   TrayIcon = new QSystemTrayIcon(QIcon(QPixmap(":/new/prefix1/resources/trayicon.png")));
   TrayIcon->setContextMenu(TrayMenu);
-  
-  setWindowIcon(QIcon(QPixmap(":/new/prefix1/resources/trayicon.png")));
 
+  // Configure GIFs and Lighthouse manager
   ProcessingMovie = new QMovie(":/new/prefix1/resources/processing.gif");
   ScanningMovie = new QMovie(":/new/prefix1/resources/loading.gif");
   LighthouseV2Mgr = LHV2Mgr::Create(LHV2AlertCallback);
