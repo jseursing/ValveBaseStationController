@@ -62,10 +62,13 @@ std::string LightHouse::ReadCharacteristic(std::string service,
     characteristic_itr c_itr = s_itr->second.find(characteristic);
     if (s_itr->second.end() != c_itr)
     {
-      Services[s_itr->first][c_itr->first] = BLEPeripheral.read(s_itr->first, c_itr->first);
+      if (true == Connect())
+      {
+        Services[s_itr->first][c_itr->first] = BLEPeripheral.read(s_itr->first, c_itr->first);
+        Disconnect();
+      }
+      
       value = c_itr->second;
-
-      Disconnect();
     }
   }
 
