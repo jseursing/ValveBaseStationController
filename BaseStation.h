@@ -39,6 +39,7 @@ public slots:
   void statusTimerSlot();
   void refreshSlot();
   void powerOnSlot();
+  void powerOffSlot();
 
 private:
 

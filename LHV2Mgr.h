@@ -27,6 +27,7 @@ public:
   void RefreshDevices();
   std::vector<LightHouse*> GetLighthouses();
   void PowerOnDevices();
+  void PowerOffDevices();
 
 private:
 

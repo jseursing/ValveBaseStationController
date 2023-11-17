@@ -43,6 +43,15 @@ void LHV2Mgr::PowerOnDevices()
   }
 }
 
+void LHV2Mgr::PowerOffDevices()
+{
+  if (PROCESSING == DiscState)
+  {
+    DiscState = TERMINATING;
+  }
+}
+
+
 void LHV2Mgr::DeviceScanLoop(LHV2Mgr* instance)
 {
   uint32_t shutoff_tick = 0;

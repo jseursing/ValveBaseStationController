@@ -116,6 +116,11 @@ void BaseStation::powerOnSlot()
   LighthouseV2Mgr->PowerOnDevices();
 }
 
+void BaseStation::powerOffSlot()
+{
+  LighthouseV2Mgr->PowerOffDevices();
+}
+
 void BaseStation::closeEvent(QCloseEvent* closeEvent)
 {
   QMessageBox::StandardButton resBtn = 
@@ -175,6 +180,9 @@ BaseStation::BaseStation(QWidget *parent) :
       action = menu.addAction("Power On Devices");
       connect(action, &QAction::triggered, this, &BaseStation::powerOnSlot);
       
+      action = menu.addAction("Power Off Devices");
+      connect(action, &QAction::triggered, this, &BaseStation::powerOffSlot);
+
       menu.exec(mapToGlobal(pos));
     });
 
@@ -190,8 +198,11 @@ BaseStation::BaseStation(QWidget *parent) :
   TrayMenu->addSeparator();
   action = TrayMenu->addAction("Refresh Devices");
   connect(action, &QAction::triggered, this, &BaseStation::refreshSlot);
+  TrayMenu->addSeparator();
   action = TrayMenu->addAction("Power On Devices");
   connect(action, &QAction::triggered, this, &BaseStation::powerOnSlot);
+  action = TrayMenu->addAction("Power Off Devices");
+  connect(action, &QAction::triggered, this, &BaseStation::powerOffSlot);
   TrayMenu->addSeparator();
   action = TrayMenu->addAction("Exit");
   connect(action, &QAction::triggered, this, [this](){ exit(0); });
